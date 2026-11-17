@@ -1,4 +1,4 @@
-# Планировщик бухгалтера (asbuhg-planner)
+# Планировщик бухгалтера (buhgalter-planner)
 
 Серверное веб-приложение для бухгалтера, который ведёт небольшую практику: клиенты — ИП и ООО, десятки сроков отчётности и уплаты налогов в году. Приложение само строит календарь сроков по карточке клиента, показывает задачи сеткой «клиенты × дни недели», ведёт реестр налоговых платежей и печатает формы.
 
@@ -70,8 +70,8 @@
 Потребуется Node.js версии 22.5 или новее (модуль `node:sqlite`). Установка зависимостей не нужна.
 
 ```bash
-git clone https://github.com/loparenok01-cpu/asbuhg-planner.git
-cd asbuhg-planner
+git clone https://github.com/loparenok01-cpu/buhgalter-planner.git
+cd buhgalter-planner
 npm start
 ```
 
