@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Планировщик бухгалтера — календарь отчётности и реестр налоговых платежей — кейс</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="case">
+
+  <div class="case-hero">
+    <p class="eyebrow">Кейс проекта</p>
+    <h1>Планировщик бухгалтера —<br>календарь отчётности и реестр налоговых платежей</h1>
+    <p>Серверное приложение для бухгалтера: клиенты, сроки отчётности, задачи недели и автоматизированный реестр налоговых платежей в одном месте. Правила задаются данными, а не кодом — приложение само строит календарь на год.</p>
+    <a class="project-link" id="project-link" href="https://github.com/Olleva/asbuhg-planner">
+      Код проекта на GitHub →
+    </a>
+  </div>
+
+  <div class="case-section">
+    <h2>Задача и контекст</h2>
+    <div class="case-grid">
+      <div class="case-block">
+        <h3>Задача</h3>
+        <p>Сделать серверное приложение по ТЗ версии 1.15: оно должно само строить календарь сроков по клиентам, показывать задачи на неделю, хранить платежи и выводить печатные формы — без внешних библиотек и сборки.</p>
+      </div>
+      <div class="case-block">
+        <h3>Целевая аудитория</h3>
+        <p>Бухгалтер, ведущий небольшую практику: несколько клиентов-ИП и ООО, разные системы налогообложения, десятки сроков в году. Раньше — таблицы Excel, закладки с сайтами и ручные напоминания.</p>
+      </div>
+      <div class="case-block">
+        <h3>Проблема</h3>
+        <p>Сроки разбросаны по источникам, а правила зависят от формы клиента и системы налогообложения. Вручную легко пропустить дату или перепутать задачу; готовые сервисы платные, тяжёлые и требуют подключения данных.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="case-section" id="reshenie">
+    <h2>Решение</h2>
+    <div class="case-grid">
+      <div class="case-block">
+        <h3>Решение</h3>
+        <p>Сервер на Node.js со встроенным SQLite и интерфейс в браузере. Правила отчётности описаны данными, поэтому приложение само строит календарь сроков, а интерфейс показывает их сеткой недели, по клиенту и в реестре платежей.</p>
+      </div>
+      <div class="case-block">
+        <h3>Основные функции</h3>
+        <p>Сетка недели с поиском и статусами; справочник клиентов с сортировкой, печатью и переходом к клиенту; автоматизированное формирование реестра налоговых платежей с суммами и расшифровкой; сроки и производственный календарь; чек-листы; экспорт и импорт копии; восстановление базы; смена пароля.</p>
+      </div>
+      <div class="case-block">
+        <h3>Использованные инструменты</h3>
+        <p>Node.js без внешних зависимостей: встроенный модуль <code>node:sqlite</code>, scrypt для хеша пароля, сессионные cookie. Чистые HTML, CSS и JavaScript без сборки и CDN. Календарь нерабочих дней — из готовых официальных источников; разработка — в OpenCode.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="case-section">
+    <h2>Результат</h2>
+    <p>Рабочее приложение, принятое по ТЗ версии 1.15: все десять этапов закрыты, 350 регрессионных проверок проходят, 36 дат и 86 задач на горизонте 01.10.2026 – 30.04.2027 сходятся с таблицей ТЗ. Работает на одном рабочем месте: один сервер, одна учётная запись, данные в файле базы. Интерфейс выдержан в светло-зелёной гамме, контраст и статусы проверены в браузере.</p>
+    <div class="case-images">
+      <figure>
+        <img src="screenshots/shot-week.png" alt="Сетка недели: задачи по клиентам и дням, статусы и прогресс">
+        <figcaption>Сетка недели: задачи по клиентам и дням, цветовые статусы и прогресс.</figcaption>
+      </figure>
+      <figure>
+        <img src="screenshots/shot-clients.png" alt="Справочник клиентов: реквизиты, сортировка, поиск и печать">
+        <figcaption>Справочник клиентов: реквизиты, сортировка по колонкам, поиск и печать.</figcaption>
+      </figure>
+      <figure>
+        <img src="screenshots/shot-registry.png" alt="Реестр платежей: суммы по датам и расшифровка платежей">
+        <figcaption>Реестр платежей: суммы по датам и расшифровка платежей.</figcaption>
+      </figure>
+    </div>
+  </div>
+
+  <div class="case-cta">
+    <p>Хотите такой же результат для своей задачи?</p>
+    <button type="button" class="cta-button" id="contact-btn">Связаться со мной</button>
+    <p class="contact-email" id="contact-email" hidden></p>
+  </div>
+
+</div>
+
+<script>
+(function () {
+  var email = 'l6344@list.ru';
+  var button = document.getElementById('contact-btn');
+  var emailEl = document.getElementById('contact-email');
+  button.addEventListener('click', function () {
+    emailEl.textContent = 'Почта: ';
+    var link = document.createElement('a');
+    link.href = 'mailto:' + email;
+    link.textContent = email;
+    emailEl.appendChild(link);
+    emailEl.hidden = false;
+    button.blur();
+    var opener = document.createElement('a');
+    opener.href = 'mailto:' + email;
+    opener.click();
+  });
+})();
+</script>
+
+</body>
+</html>

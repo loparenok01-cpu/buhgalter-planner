@@ -1,0 +1,7 @@
+# Текстовые файлы хранятся в репозитории с LF — одинаково на Windows, macOS и Linux.
+* text=auto eol=lf
+
+# Двоичные файлы не нормализуются.
+*.png binary
+*.jpg binary
+*.ico binary

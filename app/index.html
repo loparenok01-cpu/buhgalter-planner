@@ -1,0 +1,890 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=1280">
+  <title>Планировщик бухгалтера — календарь отчётности</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Узкое окно: сообщение при ширине меньше 1280 px (NFR-04, AC-60).
+       Вёрстка не сжимается: у страницы минимальная ширина 1280 px. -->
+  <div class="width-notice">
+    Окно недостаточно широкое: минимальная ширина 1280 px. Расширьте окно —
+    таблица не сжимается, прокручивайте страницу по горизонтали.
+  </div>
+
+  <!-- Экран входа: логин и пароль, без регистрации (FR-68, FR-69) -->
+  <div class="login-screen" id="login-screen">
+    <form class="login-card" id="login-form" autocomplete="on">
+      <h1 class="login-card__title">Планировщик бухгалтера</h1>
+      <p class="login-card__hint">Введите логин и пароль, чтобы открыть данные</p>
+
+      <label class="login-field">
+        <span>Логин</span>
+        <input type="text" id="login-name" name="username" autocomplete="username" required>
+      </label>
+
+      <label class="login-field">
+        <span>Пароль</span>
+        <input type="password" id="login-password" name="password" autocomplete="current-password" required>
+      </label>
+
+      <p class="login-error" id="login-error" hidden></p>
+      <p class="login-note" id="login-note" hidden></p>
+
+      <button type="submit" class="login-submit">Войти</button>
+    </form>
+  </div>
+
+  <!-- Экран восстановления: база повреждена или недоступна (FR-51, AC-51) -->
+  <div class="login-screen" id="recovery-screen" hidden>
+    <div class="login-card login-card--wide">
+      <h1 class="login-card__title">Планировщик бухгалтера</h1>
+      <p class="login-card__hint">
+        Не удалось прочитать базу данных. Приложение работает, но данные не открываются.
+        Повреждённый файл сохранён рядом с базой — его можно передать специалисту.
+      </p>
+
+      <p class="login-error" id="recovery-error" hidden></p>
+
+      <section class="recovery-block">
+        <h2 class="recovery-block__title">Доступ после восстановления</h2>
+        <p class="login-card__hint">Логин и пароль, с которыми вы будете входить в восстановленную установку.</p>
+        <label class="login-field">
+          <span>Логин</span>
+          <input type="text" id="recovery-login" value="admin" autocomplete="username">
+        </label>
+        <label class="login-field">
+          <span>Пароль</span>
+          <input type="password" id="recovery-password" autocomplete="new-password" placeholder="не меньше 6 символов">
+        </label>
+      </section>
+
+      <section class="recovery-block">
+        <h2 class="recovery-block__title">Восстановить из копии</h2>
+        <p class="login-card__hint">Файл копии JSON, выгруженный кнопкой «Экспорт» (FR-53).</p>
+        <input type="file" id="recovery-file" accept=".json,application/json">
+        <button type="button" class="recovery-button" id="recovery-restore">Восстановить из копии</button>
+      </section>
+
+      <section class="recovery-block">
+        <h2 class="recovery-block__title">Начать с нуля</h2>
+        <p class="login-card__hint">Создастся пустая база. Клиенты, задачи и платежи не восстановятся.</p>
+        <button type="button" class="recovery-button recovery-button--danger" id="recovery-start">Начать с нуля</button>
+      </section>
+
+      <p class="recovery-status" id="recovery-status"></p>
+    </div>
+  </div>
+
+  <!-- Рабочий экран: виден только после входа -->
+  <div class="app-screen" id="app-screen" hidden>
+    <header class="app-header">
+      <h1>Планировщик бухгалтера</h1>
+      <div class="app-header__summary">
+        <span id="today">Сегодня: —</span>
+        <span id="clients-count">Клиентов: 0</span>
+        <span id="week-progress">Прогресс недели: 0 %</span>
+      </div>
+      <div class="app-header__week">
+        <button type="button" class="week-nav" id="week-prev" title="Предыдущая неделя">◀</button>
+        <span id="week-range">Неделя: —</span>
+        <button type="button" class="week-nav" id="week-next" title="Следующая неделя">▶</button>
+      </div>
+      <div class="app-header__account">
+        <span id="account-login"></span>
+        <button type="button" id="btn-logout">Выйти</button>
+      </div>
+    </header>
+
+    <div class="app-body">
+      <nav class="app-menu">
+        <label class="app-menu__mode">
+          <input type="radio" name="mode" value="active" checked> Активные
+          <input type="radio" name="mode" value="archive"> Архивные
+        </label>
+        <label class="app-menu__search">
+          <span>Поиск клиента</span>
+          <input type="search" id="client-search" placeholder="Название или ИНН" autocomplete="off">
+        </label>
+        <button type="button" id="btn-home" class="app-menu__home" title="На главный экран — сетка недели">
+          <svg class="app-menu__home-icon" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false">
+            <path d="M12 2.5 1.5 12h3v9.5h5.5v-6h4v6H19.5V12h3z" fill="currentColor"></path>
+          </svg>
+          Домой
+        </button>
+        <button type="button" id="btn-clients">
+          Клиенты
+          <span class="app-menu__count" id="clients-menu-count" hidden></span>
+        </button>
+        <button type="button" id="btn-add-client">Добавить клиента</button>
+        <button type="button" id="btn-filters">Фильтры</button>
+        <button type="button" id="btn-payments">Реестр платежей</button>
+        <button type="button" id="btn-deadlines">Сроки</button>
+        <button type="button" id="btn-checklists">Чек-листы</button>
+        <button type="button" id="btn-print">Печать</button>
+        <button type="button" id="btn-export">Экспорт</button>
+        <button type="button" id="btn-import">Импорт</button>
+      </nav>
+
+      <main class="app-main">
+        <!-- Раздел «Сроки»: справочник правил и производственный календарь -->
+        <section class="deadlines-view" id="deadlines-view" hidden>
+          <div class="deadlines-toolbar">
+            <h2>Сроки</h2>
+            <div class="deadlines-tabs" role="tablist">
+              <button type="button" class="deadlines-tab is-active" id="deadlines-tab-rules">Правила</button>
+              <button type="button" class="deadlines-tab" id="deadlines-tab-calendar">Календарь</button>
+            </div>
+            <button type="button" id="btn-deadlines-close">К неделе</button>
+          </div>
+
+          <!-- Справочник правил раздела 8: только чтение (FR-44, FR-45) -->
+          <div class="reference-panel" id="reference-panel">
+            <p class="reference-hint" id="reference-hint"></p>
+            <div class="reference-groups" id="reference-groups"></div>
+          </div>
+
+          <div class="calendar-panel" id="calendar-panel" hidden>
+            <div class="calendar-toolbar">
+              <label class="calendar-year">
+                Год
+                <select id="calendar-year"></select>
+              </label>
+              <div class="calendar-actions">
+                <button type="button" id="btn-calendar-update">Обновить календарь</button>
+                <button type="button" id="btn-calendar-template">Шаблон календаря</button>
+                <button type="button" id="btn-calendar-upload">Загрузить календарь</button>
+                <button type="button" id="btn-reporting-check">Сверить сроки</button>
+              </div>
+            </div>
+
+            <div class="calendar-legend">
+              <span class="legend-item legend-item--working">рабочий</span>
+              <span class="legend-item legend-item--short">сокращённый предпраздничный</span>
+              <span class="legend-item legend-item--workingSaturday">рабочая суббота</span>
+              <span class="legend-item legend-item--dayoff">выходной</span>
+              <span class="legend-item legend-item--holiday">нерабочий праздничный</span>
+            </div>
+
+            <div class="calendar-months" id="calendar-months"></div>
+
+            <table class="calendar-norms" id="calendar-norms">
+              <thead>
+                <tr>
+                  <th>Месяц</th>
+                  <th>Дней</th>
+                  <th>Рабочих</th>
+                  <th>Выходных</th>
+                  <th>Сокращённых</th>
+                  <th>Норма, ч (40 ч/нед)</th>
+                </tr>
+              </thead>
+              <tbody id="calendar-norms-body"></tbody>
+            </table>
+
+            <!-- Журнал обновлений календаря (FR-79) -->
+            <h3 class="calendar-journal__title">Последние изменения календаря</h3>
+            <table class="calendar-journal">
+              <thead>
+                <tr>
+                  <th>Когда</th>
+                  <th>Источники</th>
+                  <th>Годы</th>
+                  <th>Заметка</th>
+                </tr>
+              </thead>
+              <tbody id="calendar-journal-body"></tbody>
+            </table>
+            <p class="calendar-journal__empty" id="calendar-journal-empty">Изменений ещё не было.</p>
+
+            <!-- Источники календаря: адреса можно ввести вручную (FR-71).
+                 Блоки внизу: при просмотре календарь первичен. -->
+            <div class="calendar-sources" id="calendar-sources">
+              <h3 class="calendar-journal__title">Источники календаря</h3>
+              <p class="calendar-sources__hint">
+                Адреса используются кнопкой «Обновить календарь». В адресе подстановка
+                <code>{year}</code> заменяется на запрашиваемый год. Список хранится в
+                файле <code>data/calendar-sources.json</code> и может быть заменён целиком.
+              </p>
+              <div class="calendar-sources__rows" id="calendar-sources-rows"></div>
+
+              <h3 class="calendar-journal__title">Календарь отчётности</h3>
+              <p class="calendar-sources__hint">
+                Источник сроков отчётности для кнопки «Сверить сроки» (FR-74). В адресе
+                подстановки <code>{year}</code> и <code>{month}</code> заменяются на год и
+                номер месяца. Адрес хранится в файле <code>data/deadlines-source.json</code>.
+              </p>
+              <div class="calendar-sources__row">
+                <input type="text" class="calendar-sources__title" id="deadlines-source-title" placeholder="Название">
+                <input type="text" class="calendar-sources__url" id="deadlines-source-url" placeholder="https://…/{year}/{month}">
+              </div>
+
+              <div class="calendar-sources__actions">
+                <button type="button" id="calendar-source-add">Добавить источник</button>
+                <button type="button" id="calendar-source-save">Сохранить источники</button>
+                <span class="calendar-sources__status" id="calendar-sources-status"></span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Справочник клиентов: реквизиты и признаки, переход в карточку (FR-13…FR-21) -->
+        <section class="clients-view" id="clients-view" hidden>
+          <div class="clients-toolbar">
+            <h2>Клиенты</h2>
+            <p class="clients-toolbar__hint" id="clients-hint"></p>
+            <button type="button" id="clients-add">Добавить клиента</button>
+            <button type="button" id="clients-print">Печать</button>
+            <button type="button" id="btn-clients-close">К неделе</button>
+          </div>
+
+          <table class="clients-table">
+            <thead>
+              <tr>
+                <th class="is-sortable" data-sort="name" aria-sort="none" title="Сортировать по названию">Клиент</th>
+                <th class="is-sortable" data-sort="inn" aria-sort="none" title="Сортировать по ИНН">ИНН</th>
+                <th class="is-sortable" data-sort="form" aria-sort="none" title="Сортировать по форме и СНО">Форма · СНО</th>
+                <th>НДС</th>
+                <th>Авансы по прибыли</th>
+                <th>Признаки</th>
+                <th>Действия</th>
+              </tr>
+            </thead>
+            <tbody id="clients-body">
+              <tr>
+                <td class="clients-empty" colspan="7">Клиентов пока нет. Заведите первого кнопкой «Добавить клиента».</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+
+        <!-- Реестр платежей: запись по всем клиентам с итогами (FR-62, FR-63) -->
+        <section class="registry-view" id="registry-view" hidden>
+          <div class="registry-toolbar">
+            <h2>Реестр платежей</h2>
+            <label class="registry-filter">
+              С
+              <span class="date-field">
+                <input type="text" id="registry-from" placeholder="ДД-ММ-ГГГГ" maxlength="10">
+                <button type="button" class="date-pick" title="Выбрать дату">📅</button>
+              </span>
+            </label>
+            <label class="registry-filter">
+              По
+              <span class="date-field">
+                <input type="text" id="registry-to" placeholder="ДД-ММ-ГГГГ" maxlength="10">
+                <button type="button" class="date-pick" title="Выбрать дату">📅</button>
+              </span>
+            </label>
+            <label class="registry-filter">
+              Организация
+              <select id="registry-client"><option value="">все</option></select>
+            </label>
+            <label class="registry-filter">
+              Вид налога
+              <select id="registry-tax"><option value="">все</option></select>
+            </label>
+            <button type="button" id="registry-apply">Показать</button>
+            <button type="button" id="registry-reset">Сбросить</button>
+            <button type="button" id="registry-print">Печать реестра</button>
+            <button type="button" id="registry-add-manual">Добавить запись вручную</button>
+            <button type="button" id="btn-registry-close">К неделе</button>
+          </div>
+
+          <div class="registry-body" id="registry-body"></div>
+          <div class="registry-summary" id="registry-summary"></div>
+        </section>
+
+        <table class="week-grid" id="week-grid">
+          <thead>
+            <tr id="week-grid-head">
+              <th class="week-grid__client">Клиент</th>
+            </tr>
+          </thead>
+          <tbody id="week-grid-body">
+            <tr>
+              <td class="week-grid__empty" colspan="8">
+                Данных пока нет. Заведите первого клиента кнопкой «Добавить клиента».
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </main>
+    </div>
+
+    <footer class="app-footer">
+      <span id="server-status">Сервер: проверяется…</span>
+    </footer>
+  </div>
+
+  <!-- Карточка клиента: сохраняется только целиком и заполненной (FR-21) -->
+  <div class="modal" id="client-modal" hidden>
+    <div class="modal__card">
+      <h2 id="client-modal-title">Добавить клиента</h2>
+
+      <form id="client-form" novalidate>
+        <div class="form-grid">
+          <label class="form-field">
+            <span>Форма клиента *</span>
+            <select id="field-form">
+              <option value="">—</option>
+              <option value="ООО">ООО</option>
+              <option value="ИП">ИП</option>
+            </select>
+          </label>
+
+          <label class="form-field">
+            <span>Название *</span>
+            <input type="text" id="field-name">
+          </label>
+
+          <label class="form-field">
+            <span>ИНН *</span>
+            <input type="text" id="field-inn" inputmode="numeric">
+          </label>
+
+          <label class="form-field">
+            <span>Система налогообложения *</span>
+            <select id="field-sno">
+              <option value="">—</option>
+              <option value="ОСНО">ОСНО</option>
+              <option value="УСН">УСН</option>
+              <option value="ЕСХН">ЕСХН</option>
+              <option value="ПСН">ПСН</option>
+              <option value="НПД">НПД</option>
+              <option value="АУСН">АУСН</option>
+            </select>
+          </label>
+
+          <label class="form-field">
+            <span>Платит НДС *</span>
+            <select id="field-vat">
+              <option value="">—</option>
+              <option value="yes">да</option>
+              <option value="no">нет</option>
+            </select>
+          </label>
+
+          <label class="form-field">
+            <span>Ставка НДС</span>
+            <select id="field-vat-rate">
+              <option value="">—</option>
+              <option value="22">22 %</option>
+              <option value="10">10 %</option>
+              <option value="7">7 %</option>
+              <option value="5">5 %</option>
+              <option value="0">0 %</option>
+            </select>
+          </label>
+
+          <label class="form-field">
+            <span>Авансы по прибыли</span>
+            <select id="field-profit">
+              <option value="none">нет</option>
+              <option value="quarterly">поквартально</option>
+              <option value="monthly">ежемесячно</option>
+            </select>
+          </label>
+
+          <label class="form-field form-field--check">
+            <input type="checkbox" id="field-vat-exempt"> Освобождён от НДС
+          </label>
+
+          <label class="form-field form-field--check">
+            <input type="checkbox" id="field-employees"> Есть сотрудники
+          </label>
+
+          <label class="form-field form-field--check">
+            <input type="checkbox" id="field-land"> Платит земельный налог
+          </label>
+
+          <label class="form-field form-field--check">
+            <input type="checkbox" id="field-property"> Платит налог на имущество
+          </label>
+
+          <label class="form-field form-field--check">
+            <input type="checkbox" id="field-transport"> Платит транспортный налог
+          </label>
+        </div>
+
+        <div class="form-errors" id="client-errors" hidden></div>
+
+        <div class="modal__actions">
+          <button type="button" class="btn-secondary" id="client-extra">Дополнительно</button>
+          <span class="modal__spacer"></span>
+          <button type="submit" class="btn-primary">Сохранить</button>
+          <button type="button" class="btn-secondary" id="client-cancel">Отмена</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Пометки «Дополнительно»: на подбор отчётности не влияют (FR-16) -->
+  <div class="modal" id="flags-modal" hidden>
+    <div class="modal__card modal__card--small">
+      <h2>Дополнительно</h2>
+      <p class="modal__hint">Эти пометки не влияют на подбор отчётности — они нужны, чтобы помнить детали по клиенту.</p>
+
+      <div class="flags-list" id="flags-list"></div>
+
+      <div class="flags-add">
+        <input type="text" id="flags-new" placeholder="Своя пометка">
+        <button type="button" class="btn-secondary" id="flags-add-btn">Добавить</button>
+      </div>
+
+      <div class="modal__actions">
+        <button type="button" class="btn-primary" id="flags-close">Готово</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Предпросмотр генерации: снимается отметка с любой позиции (FR-20) -->
+  <div class="modal" id="report-modal" hidden>
+    <div class="modal__card modal__card--wide">
+      <h2 id="report-title">Создать отчётность</h2>
+      <p class="modal__hint" id="report-hint"></p>
+
+      <div class="report-groups" id="report-groups"></div>
+
+      <div class="report-footer">
+        <span class="report-footer__count" id="report-count"></span>
+        <span class="modal__spacer"></span>
+        <button type="button" class="btn-secondary" id="report-select-all">Выбрать все</button>
+        <button type="button" class="btn-secondary" id="report-clear-all">Снять все</button>
+      </div>
+
+      <div class="modal__actions">
+        <button type="button" class="btn-primary" id="report-submit">Создать</button>
+        <button type="button" class="btn-secondary" id="report-cancel">Отмена</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Каталог шаблонов: отметки, выбрать все, снять все, свои шаблоны (FR-27, FR-28) -->
+  <div class="modal" id="catalog-modal" hidden>
+    <div class="modal__card modal__card--wide">
+      <h2 id="catalog-title">Добавить задачу</h2>
+      <p class="modal__hint" id="catalog-hint"></p>
+
+      <div class="catalog-list" id="catalog-list"></div>
+
+      <div class="catalog-add">
+        <input type="text" id="catalog-new-title" maxlength="200" placeholder="Новый шаблон">
+        <button type="button" class="btn-secondary" id="catalog-add-btn">Добавить шаблон</button>
+      </div>
+
+      <div class="manual-task">
+        <span class="manual-task__label">Своя задача — только для этой ячейки и в каталог не попадает</span>
+        <div class="manual-task__row">
+          <input type="text" id="manual-title" maxlength="300" placeholder="Название задачи">
+          <button type="button" class="btn-secondary" id="manual-add-btn">Добавить вручную</button>
+        </div>
+      </div>
+
+      <div class="modal__actions">
+        <button type="button" class="btn-secondary" id="catalog-select-all">Выбрать все</button>
+        <button type="button" class="btn-secondary" id="catalog-clear-all">Снять все</button>
+        <span class="catalog-count" id="catalog-count"></span>
+        <span class="modal__spacer"></span>
+        <button type="button" class="btn-primary" id="catalog-submit">Создать выбранные</button>
+        <button type="button" class="btn-secondary" id="catalog-cancel">Отмена</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Комментарий хранится вместе с задачей (FR-35, FR-36) -->
+  <div class="modal" id="comment-modal" hidden>
+    <div class="modal__card modal__card--small">
+      <h2 id="comment-title">Комментарий</h2>
+      <p class="modal__hint" id="comment-task"></p>
+      <textarea class="comment-text" id="comment-text" rows="5" maxlength="2000"></textarea>
+
+      <div class="modal__actions">
+        <button type="button" class="btn-secondary" id="comment-clear">Очистить</button>
+        <span class="modal__spacer"></span>
+        <button type="button" class="btn-primary" id="comment-save">Сохранить</button>
+        <button type="button" class="btn-secondary" id="comment-cancel">Отмена</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Форма реестра платежей: дата, комментарий, строки расшифровки (FR-57…FR-60) -->
+  <div class="modal" id="payment-modal" hidden>
+    <div class="modal__card modal__card--wide">
+      <h2 id="payment-title">Заполнить платежи</h2>
+      <p class="modal__hint" id="payment-task"></p>
+
+      <div class="payment-fields">
+        <label class="form-field">
+          <span>Клиент *</span>
+          <select id="payment-client"></select>
+        </label>
+        <label class="form-field">
+          <span>Дата платежа *</span>
+          <span class="date-field">
+            <input type="text" id="payment-date" placeholder="ДД-ММ-ГГГГ" maxlength="10">
+            <button type="button" class="date-pick" title="Выбрать дату">📅</button>
+          </span>
+        </label>
+        <label class="form-field">
+          <span>Комментарий</span>
+          <input type="text" id="payment-comment" maxlength="2000">
+        </label>
+      </div>
+
+      <!-- Деление квартальной суммы НДС на три доли (FR-66) -->
+      <div class="vat-split" id="vat-split" hidden>
+        <span class="vat-split__label">Сумма НДС за квартал, ₽</span>
+        <input type="text" id="vat-amount" inputmode="numeric">
+        <button type="button" class="btn-secondary" id="vat-split-btn">Разделить на три доли</button>
+        <span class="vat-split__hint" id="vat-split-hint"></span>
+      </div>
+
+      <!-- Фиксация авансов по прибыли на три месяца (раздел 8.4) -->
+      <div class="vat-split" id="profit-split" hidden>
+        <span class="vat-split__label">Сумма аванса в месяц, ₽</span>
+        <input type="text" id="profit-amount" inputmode="numeric">
+        <button type="button" class="btn-secondary" id="profit-split-btn">Зафиксировать авансы на 3 месяца</button>
+        <span class="vat-split__hint" id="profit-split-hint"></span>
+      </div>
+
+      <table class="payment-lines">
+        <thead>
+          <tr>
+            <th>Вид налога</th>
+            <th>Сумма, ₽</th>
+            <th>Источник</th>
+            <th>Дата сдачи</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="payment-lines-body"></tbody>
+      </table>
+      <button type="button" class="btn-secondary" id="payment-add-line">Добавить строку</button>
+
+      <!-- Итог считается из строк и отдельно не вводится (FR-60) -->
+      <div class="payment-total">Итого по строкам: <span id="payment-total">0</span> ₽</div>
+
+      <div class="modal__actions">
+        <span class="modal__spacer"></span>
+        <button type="button" class="btn-primary" id="payment-save">Сохранить</button>
+        <button type="button" class="btn-secondary" id="payment-cancel">Отмена</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Фильтры: четыре режима, результаты, переход двойным кликом (FR-37…FR-41) -->
+  <div class="modal" id="filters-modal" hidden>
+    <div class="modal__card modal__card--wide">
+      <h2>Фильтры</h2>
+      <p class="modal__hint">Выберите режим, задайте условие и нажмите «Показать». Двойной клик по строке результата переводит сетку на неделю задачи и прокручивает к клиенту.</p>
+
+      <div class="filter-tabs" id="filter-tabs" role="tablist">
+        <button type="button" class="filter-tab is-active" data-filter-mode="tasks">По задачам</button>
+        <button type="button" class="filter-tab" data-filter-mode="client">По клиенту</button>
+        <button type="button" class="filter-tab" data-filter-mode="date">По дате</button>
+        <button type="button" class="filter-tab" data-filter-mode="status">По статусу</button>
+      </div>
+
+      <div class="filter-fields">
+        <label class="form-field" data-filter-panel="tasks">
+          <span>Название задачи содержит</span>
+          <input type="text" id="filter-task-query" maxlength="300" placeholder="Например, НДС">
+        </label>
+
+        <label class="form-field" data-filter-panel="client" hidden>
+          <span>Клиент</span>
+          <select id="filter-client"><option value="">все клиенты</option></select>
+        </label>
+
+        <div class="filter-date-row" data-filter-panel="date" hidden>
+          <label class="form-field">
+            <span>С</span>
+            <span class="date-field">
+              <input type="text" id="filter-from" placeholder="ДД-ММ-ГГГГ" maxlength="10">
+              <button type="button" class="date-pick" title="Выбрать дату">📅</button>
+            </span>
+          </label>
+          <label class="form-field">
+            <span>По</span>
+            <span class="date-field">
+              <input type="text" id="filter-to" placeholder="ДД-ММ-ГГГГ" maxlength="10">
+              <button type="button" class="date-pick" title="Выбрать дату">📅</button>
+            </span>
+          </label>
+        </div>
+
+        <label class="form-field" data-filter-panel="status" hidden>
+          <span>Статус</span>
+          <select id="filter-status">
+            <option value="">любой</option>
+            <option value="todo">Нужно сделать</option>
+            <option value="doing">В процессе</option>
+            <option value="done">Сделано</option>
+            <option value="sent">Отправлено</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="filter-actions">
+        <button type="button" class="btn-primary" id="filter-apply">Показать</button>
+        <button type="button" class="btn-secondary" id="filter-reset">Сбросить</button>
+        <button type="button" class="btn-secondary" id="filter-print">Печать выбранных</button>
+        <span class="filter-count" id="filter-count"></span>
+      </div>
+
+      <div class="filter-results" id="filter-results"></div>
+
+      <div class="modal__actions">
+        <span class="modal__spacer"></span>
+        <button type="button" class="btn-secondary" id="filters-close">Закрыть</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Чек-листы: списки задач и дат, создание, изменение, удаление и применение (FR-42) -->
+  <div class="modal" id="checklists-modal" hidden>
+    <div class="modal__card modal__card--wide">
+      <h2>Чек-листы</h2>
+      <p class="modal__hint">Чек-лист — список задач с необязательными датами. При применении к клиенту на период создаются задачи с указанными датами.</p>
+
+      <div class="checklists-layout">
+        <aside class="checklists-side">
+          <button type="button" class="btn-secondary" id="checklist-new">Новый чек-лист</button>
+          <div class="checklists-list" id="checklists-list"></div>
+        </aside>
+
+        <section class="checklist-editor">
+          <label class="form-field">
+            <span>Название чек-листа</span>
+            <input type="text" id="checklist-title" maxlength="200">
+          </label>
+
+          <div class="checklist-items" id="checklist-items"></div>
+          <button type="button" class="btn-secondary" id="checklist-add-item">Добавить пункт</button>
+
+          <div class="checklist-save-row">
+            <button type="button" class="btn-primary" id="checklist-save">Сохранить</button>
+            <button type="button" class="btn-secondary" id="checklist-delete">Удалить</button>
+            <span class="checklist-status" id="checklist-status"></span>
+          </div>
+
+          <div class="checklist-apply">
+            <h3>Применить к клиенту на период</h3>
+            <div class="checklist-apply__row">
+              <label class="form-field">
+                <span>Клиент</span>
+                <select id="checklist-client"></select>
+              </label>
+              <label class="form-field">
+                <span>С</span>
+                <span class="date-field">
+                  <input type="text" id="checklist-from" placeholder="ДД-ММ-ГГГГ" maxlength="10">
+                  <button type="button" class="date-pick" title="Выбрать дату">📅</button>
+                </span>
+              </label>
+              <label class="form-field">
+                <span>По</span>
+                <span class="date-field">
+                  <input type="text" id="checklist-to" placeholder="ДД-ММ-ГГГГ" maxlength="10">
+                  <button type="button" class="date-pick" title="Выбрать дату">📅</button>
+                </span>
+              </label>
+              <button type="button" class="btn-secondary" id="checklist-apply-btn">Применить</button>
+            </div>
+            <p class="checklist-hint">Привязка пункта: «дата» — задача встаёт на эту дату (если она входит в период), «период» — задача создаётся на каждый недельный / месячный / квартальный период, попавший в выбранный диапазон, «без даты» — задача встаёт на начало периода. Дата внутри периода: начало, середина, конец, «число месяца» (шаг — месяц, своё число) или «день недели» (шаг — неделя, свой день). Пункты вне периода пропускаются. Созданные задачи можно изменить или удалить как обычные.</p>
+          </div>
+        </section>
+      </div>
+
+      <div class="modal__actions">
+        <span class="modal__spacer"></span>
+        <button type="button" class="btn-secondary" id="checklists-close">Закрыть</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Печать: рабочая таблица или выбранный набор задач (FR-43) -->
+  <div class="modal" id="print-modal" hidden>
+    <div class="modal__card modal__card--wide">
+      <h2>Печать</h2>
+      <p class="modal__hint">Выберите, что печатать. В окне печати будет только таблица — без меню, кнопок и служебных сообщений.</p>
+
+      <div class="print-modes" id="print-modes">
+        <label class="print-mode">
+          <input type="radio" name="print-mode" value="week" checked>
+          Рабочая таблица — текущая неделя
+        </label>
+        <label class="print-mode">
+          <input type="radio" name="print-mode" value="tasks">
+          Выбранный набор задач — <span id="print-tasks-count">0</span>
+        </label>
+      </div>
+
+      <!-- Поиск задач прямо в окне печати: набор собирается без окна «Фильтры» -->
+      <div class="print-search" id="print-search" hidden>
+        <div class="print-search__row">
+          <label class="form-field">
+            <span>Задача содержит</span>
+            <input type="text" id="print-q" maxlength="300" placeholder="Например, НДС">
+          </label>
+          <label class="form-field">
+            <span>Клиент</span>
+            <select id="print-client"><option value="">все клиенты</option></select>
+          </label>
+        </div>
+        <div class="print-search__row">
+          <label class="form-field">
+            <span>С</span>
+            <span class="date-field">
+              <input type="text" id="print-from" placeholder="ДД-ММ-ГГГГ" maxlength="10">
+              <button type="button" class="date-pick" title="Выбрать дату">📅</button>
+            </span>
+          </label>
+          <label class="form-field">
+            <span>По</span>
+            <span class="date-field">
+              <input type="text" id="print-to" placeholder="ДД-ММ-ГГГГ" maxlength="10">
+              <button type="button" class="date-pick" title="Выбрать дату">📅</button>
+            </span>
+          </label>
+          <label class="form-field">
+            <span>Статус</span>
+            <select id="print-status">
+              <option value="">любой</option>
+              <option value="todo">Нужно сделать</option>
+              <option value="doing">В процессе</option>
+              <option value="done">Сделано</option>
+              <option value="sent">Отправлено</option>
+            </select>
+          </label>
+          <button type="button" class="btn-secondary" id="print-search-btn">Найти</button>
+        </div>
+        <p class="print-search__hint">Пустые условия означают «все задачи». Найденные задачи станут набором для печати.</p>
+      </div>
+
+      <div class="print-preview" id="print-preview"></div>
+
+      <div class="modal__actions">
+        <span class="modal__spacer"></span>
+        <button type="button" class="btn-primary" id="print-run">Печать</button>
+        <button type="button" class="btn-secondary" id="print-cancel">Отмена</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Импорт копии: проверка файла, количества и подтверждение замены (FR-54, FR-55) -->
+  <div class="modal" id="import-modal" hidden>
+    <div class="modal__card">
+      <h2>Импорт данных</h2>
+      <p class="modal__hint">
+        Файл копии заменяет всех клиентов, задачи, платежи, шаблоны, чек-листы
+        и настройки вида. Учётная запись и входы не меняются.
+      </p>
+
+      <label class="form-field">
+        <span>Файл копии JSON</span>
+        <input type="file" id="import-file" accept="application/json,.json">
+      </label>
+
+      <div class="import-report" id="import-report" hidden>
+        <table class="import-counts">
+          <thead>
+            <tr>
+              <th>Раздел</th>
+              <th>В файле</th>
+              <th>Сейчас в базе</th>
+            </tr>
+          </thead>
+          <tbody id="import-counts-body"></tbody>
+        </table>
+
+        <div class="import-status" id="import-status"></div>
+        <ul class="import-errors" id="import-errors" hidden></ul>
+      </div>
+
+      <div class="modal__actions">
+        <span class="modal__spacer"></span>
+        <button type="button" class="btn-primary" id="import-run" disabled>Импортировать</button>
+        <button type="button" class="btn-secondary" id="import-cancel">Отмена</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Обновление календаря нерабочих дней: сайты и файл по шаблону (FR-71…FR-79) -->
+  <div class="modal" id="calendar-modal" hidden>
+    <div class="modal__card modal__card--wide">
+      <h2 id="calendar-modal-title">Обновление календаря</h2>
+      <p class="modal__hint" id="calendar-modal-hint"></p>
+
+      <div class="calendar-file-row" id="calendar-file-row" hidden>
+        <label class="form-field">
+          <span>Файл календаря JSON</span>
+          <input type="file" id="calendar-file" accept="application/json,.json">
+        </label>
+      </div>
+
+      <div class="calendar-progress" id="calendar-progress"></div>
+      <ul class="calendar-errors" id="calendar-errors" hidden></ul>
+      <div class="calendar-report" id="calendar-report" hidden></div>
+
+      <div class="modal__actions">
+        <span class="modal__spacer"></span>
+        <button type="button" class="btn-primary" id="calendar-apply" disabled>Применить</button>
+        <button type="button" class="btn-secondary" id="calendar-cancel">Отмена</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Сверка сроков отчётности с календарём источника (FR-74, AC-88) -->
+  <div class="modal" id="reporting-modal" hidden>
+    <div class="modal__card modal__card--wide">
+      <h2>Сверка сроков отчётности</h2>
+      <p class="modal__hint" id="reporting-hint">
+        Сроки расчётных задач сверяются с календарём отчётности источника.
+        Правила при этом не изменяются: расхождения показываются предупреждением.
+        Пока сверяется только 2026 год.
+      </p>
+
+      <div class="calendar-progress" id="reporting-progress"></div>
+      <div class="calendar-report" id="reporting-report" hidden></div>
+
+      <div class="modal__actions">
+        <span class="modal__spacer"></span>
+        <button type="button" class="btn-secondary" id="reporting-close">Закрыть</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Справочник видов налогов для строк расшифровки -->
+  <datalist id="tax-kinds">
+    <option value="НДС">
+    <option value="НДФЛ">
+    <option value="Страховые взносы">
+    <option value="Взносы на травматизм">
+    <option value="Налог на прибыль">
+    <option value="Земельный налог">
+    <option value="Налог на имущество">
+    <option value="Транспортный налог">
+    <option value="УСН">
+    <option value="ЕСХН">
+  </datalist>
+
+  <!-- Меню статуса и контекстное меню задачи (FR-32, FR-34) -->
+  <div class="floating-menu" id="status-menu" hidden></div>
+  <div class="floating-menu" id="task-menu" hidden></div>
+
+  <!-- Выбор даты из календаря для полей дат -->
+  <div class="floating-menu date-picker" id="date-picker" hidden></div>
+
+  <!-- Всплывающее сообщение: экспорт, импорт, сохранение настроек вида -->
+  <div class="notice" id="notice" hidden></div>
+
+  <!-- Область печати: на экране скрыта, при печати заменяет приложение -->
+  <div class="print-area" id="print-area"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
