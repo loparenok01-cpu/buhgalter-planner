@@ -70,7 +70,7 @@
 Потребуется Node.js версии 22.5 или новее (модуль `node:sqlite`). Установка зависимостей не нужна.
 
 ```bash
-git clone https://github.com/Olleva/asbuhg-planner.git
+git clone https://github.com/loparenok01-cpu/asbuhg-planner.git
 cd asbuhg-planner
 npm start
 ```
